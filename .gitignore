@@ -1,0 +1,16 @@
+.venv/
+.npm-cache/
+runtime/
+config.local.env
+.env.local
+__pycache__/
+*.pyc
+web/node_modules/
+web/.next/
+web/dist/
+web/.wrangler/
+pc-toolkit-screenshots/
+legal-hold-screenshots/
+legal-hold-results.json
+legal-hold-api-results.json
+capture.log
