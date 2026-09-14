@@ -27,6 +27,15 @@ On first launch it creates a Python virtual environment, installs Playwright and
 
 The UI contains synthetic ticket/device examples until it is run against PC Toolkit in the work environment. Templates are saved under `runtime/`, which is excluded from Git.
 
+The project root has a Finder-ready shortcut for each workflow:
+
+| Shortcut | Purpose |
+| --- | --- |
+| **Start Helix Workbench.command** | Starts the web UI and localhost companion bridge, then opens Chrome. Keep the Terminal window open while using it. |
+| **PC Toolkit API Check.command** | Prompts for serials, performs read-only API checks, and opens the saved JSON folder. |
+| **PC Toolkit Screenshot Capture.command** | Prompts for serials, searches in Chrome, saves full-page screenshots plus JSON, and opens the saved folder. |
+| **pc-toolkit-legal-hold.command** | Advanced command-line entry point for input files and custom options. |
+
 ## PC Toolkit shortcuts
 
 Double-click either shortcut and paste serial numbers separated by spaces:
