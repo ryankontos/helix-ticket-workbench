@@ -257,40 +257,18 @@ async def read_response(response: Any) -> tuple[Any | None, str | None]:
 
 async def capture_results(page: Any, destination: Path, serial: str) -> str:
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-
-    # The captured app bundle exposes this exact table title. Its nearest MUI
-    # Paper ancestor includes the title, result rows, and Legal Hold column.
+    # Always capture the complete rendered page so the evidence includes the
+    # search context, navigation, result panel, and any visible legal-hold UI.
     title = page.get_by_text(RESULTS_TITLE, exact=True).first
     try:
         await title.wait_for(state="visible", timeout=15_000)
-        try:
-            await page.get_by_text(serial, exact=False).first.wait_for(
-                state="visible", timeout=5_000
-            )
-        except Exception:
-            # Some searches can return a normalized/related device name instead.
-            pass
-        await page.wait_for_timeout(500)
-        panel = title.locator(
-            "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), "
-            "' MuiPaper-root ')][1]"
-        )
-        if await panel.count() and await panel.first.is_visible():
-            await panel.first.screenshot(path=str(destination))
-            return "results-panel"
     except Exception:
+        # The API response is still the source of truth for success; retain a
+        # full-page screenshot even if the app's visible title changes.
         pass
-
-    table = page.locator("table").filter(has_text="Legal Hold").first
-    try:
-        if await table.count() and await table.is_visible():
-            await table.screenshot(path=str(destination))
-            return "results-table"
-    except Exception:
-        pass
-
+    await page.wait_for_timeout(500)
     await page.screenshot(path=str(destination), full_page=True)
-    return "full-page-fallback"
+    return "full-page"
 
 
 async def process_serial(

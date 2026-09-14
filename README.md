@@ -32,7 +32,7 @@ The UI contains synthetic ticket/device examples until it is run against PC Tool
 Double-click either shortcut and paste serial numbers separated by spaces:
 
 - **PC Toolkit API Check.command** — read-only API checks, no browser.
-- **PC Toolkit Screenshot Capture.command** — searches in Chrome and saves one legal-hold screenshot per successful serial.
+- **PC Toolkit Screenshot Capture.command** — searches in Chrome and saves one full-page legal-hold screenshot per successful serial.
 
 Both shortcuts create an owner-only timestamped folder on the Desktop containing JSON output. The browser version uses a dedicated retained Chrome profile so corporate sign-in can be reused without altering the normal Chrome profile.
 

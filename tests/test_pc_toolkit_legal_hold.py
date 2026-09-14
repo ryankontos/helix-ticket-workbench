@@ -141,5 +141,40 @@ class ResponseTests(unittest.TestCase):
         self.assertEqual(summary["serials"]["not_on_legal_hold"], ["TWO"])
 
 
+class ScreenshotTests(unittest.TestCase):
+    def test_capture_always_requests_full_page_screenshot(self):
+        class FakeLocator:
+            first = None
+
+            def __init__(self):
+                self.first = self
+
+            async def wait_for(self, **kwargs):
+                return None
+
+        class FakePage:
+            def __init__(self):
+                self.screenshot = mock.AsyncMock()
+
+            def get_by_text(self, *args, **kwargs):
+                return FakeLocator()
+
+            async def wait_for_timeout(self, milliseconds):
+                return None
+
+        with tempfile.TemporaryDirectory() as directory:
+            page = FakePage()
+            scope = asyncio.run(
+                MODULE.capture_results(
+                    page,
+                    Path(directory) / "ABC123.png",
+                    "ABC123",
+                )
+            )
+            self.assertEqual(scope, "full-page")
+            page.screenshot.assert_awaited_once()
+            self.assertTrue(page.screenshot.await_args.kwargs["full_page"])
+
+
 if __name__ == "__main__":
     unittest.main()
