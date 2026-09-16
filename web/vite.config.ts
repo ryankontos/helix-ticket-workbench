@@ -11,7 +11,7 @@ const { d1, r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
-const isLocalNodeMode = process.env.HELIX_LOCAL_NODE === '1';
+const isLocalNodeMode = process.env.LEGAL_HOLD_LOCAL_NODE === '1';
 
 const localBindingConfig = {
   main: 'vinext/server/app-router-entry',

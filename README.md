@@ -1,91 +1,65 @@
-# Helix Ticket Workbench
+# Legal Hold Checker
 
-A local, simulation-first workspace for preparing Helix ticket changes and collecting PC Toolkit legal-hold evidence. The current build **cannot submit or modify Helix tickets**: it creates reviewable dry-run JSON only.
+A local PC Toolkit checker for batch serial lookups, full-page evidence screenshots, and searchable history.
 
-The project is intended to run on an approved corporate Mac/network. It contains no credentials and does not replay authentication captured in HAR files.
+## Run it
 
-## What is included
+Double-click **Start Legal Hold Checker.command**. It starts the local web page and browser companion, then opens Chrome at `http://127.0.0.1:3210`.
 
-- Helix-inspired ticket queue with search, rebuild readiness, ticket detail, and sample records.
-- Rebuild closure assistant with an explicit legal-hold gate, screenshot evidence, change preview, and downloadable dry-run JSON.
-- Flexible modification-template editor for fields, work logs, and attachments, with variables and live previews.
-- Separate PC Toolkit batch workspace for API-only checks or Chrome evidence capture.
-- Retry handling for the known transient `not found` result (six attempts by default).
-- Raw PC Toolkit payloads shown per serial and retained in the generated JSON.
-- Owner-only local template, result, and screenshot storage.
-- Screenshot capture is restricted to explicit `NotFlagged` results; flagged and unknown results never produce screenshots.
-- Double-clickable macOS `.command` launchers.
+Double-click **Stop Legal Hold Checker.command** when finished. Pressing Control-C in the start window also stops both processes.
 
-## Start the web app
+## Check serials
 
-Double-click **Start Helix Workbench.command**, or run:
+The page supports:
+
+- Multiple serials, one per line.
+- A screenshot folder path.
+- **New folder** to create a timestamped run folder inside that path.
+- **Add to folder** to place screenshots directly in the selected folder.
+- A configurable search-attempt limit, from 1 to 20.
+- Searchable check history.
+- Device details and the complete returned browser JSON.
+- An **Open screenshot** button for eligible checks.
+
+Screenshots are full-page PNGs named `<SERIAL>.png`. A screenshot is created only when every returned legal-hold record is explicitly `NotFlagged`. Flagged, unknown, and unsuccessful results still appear in history and retain their returned JSON, but do not produce screenshots.
+
+## Optional local configuration
+
+The approved PC Toolkit page URL is built in. Copy `.env.example` to the ignored `config.local.env` file only when you want to override local settings:
 
 ```sh
-./Start\ Helix\ Workbench.command
+PC_TOOLKIT_SCREENSHOT_DIR=/Users/your-username/Desktop/Legal-Hold-Evidence
+PC_TOOLKIT_MAX_ATTEMPTS=6
 ```
 
-On first launch it creates a Python virtual environment, installs Playwright and the web dependencies, then opens Chrome at `http://127.0.0.1:3210`. The companion API binds only to `127.0.0.1:47831`. The launcher uses local Node mode and skips Cloudflare `workerd`, which avoids Santa blocking the dashboard runtime.
+`PC_TOOLKIT_SCREENSHOT_DIR` sets the initial folder in the page and the default folder used by the screenshot shortcut. `PC_TOOLKIT_MAX_ATTEMPTS` sets the initial retry limit.
 
-The UI contains synthetic ticket/device examples until it is run against PC Toolkit in the work environment. Templates are saved under `runtime/`, which is excluded from Git.
+## Stored files
 
-The project root has a Finder-ready shortcut for each workflow:
+The checker keeps these separately under the ignored `runtime/` directory:
 
-| Shortcut | Purpose |
-| --- | --- |
-| **Start Helix Workbench.command** | Starts the Node-based web UI and localhost companion bridge, then opens Chrome. Keep the Terminal window open while using it. |
-| **PC Toolkit API Check.command** | Prompts for serials, performs read-only API checks, and opens the saved JSON folder. |
-| **PC Toolkit Screenshot Capture.command** | Prompts for serials, searches in Chrome, saves full-page screenshots plus JSON, and opens the saved folder. |
-| **pc-toolkit-legal-hold.command** | Advanced command-line entry point for input files and custom options. |
+- `history.json` — check summaries used by the history list.
+- `device-info/<serial>/<check-id>.json` — complete returned data for each check.
+- `runs/<run-id>.json` — complete batch result document.
 
-## PC Toolkit shortcuts
+Screenshots are saved in the selected screenshot folder. All generated folders and JSON files are owner-only.
 
-Double-click either shortcut and paste serial numbers separated by spaces:
+## Command line
 
-- **PC Toolkit API Check.command** — read-only API checks, no browser.
-- **PC Toolkit Screenshot Capture.command** — searches in Chrome and saves one full-page legal-hold screenshot per successful serial.
-
-Both shortcuts create an owner-only timestamped folder on the Desktop containing JSON output. The browser version uses a dedicated retained Chrome profile so corporate sign-in can be reused without altering the normal Chrome profile.
-
-The lower-level command accepts positional serials or an input file:
+The advanced browser command accepts serials or an input file:
 
 ```sh
 ./pc-toolkit-legal-hold.command ABC123 DEF456 \
-  --output legal-hold-results.json
-
-./pc-toolkit-legal-hold.command \
-  --api-only \
-  --input serials.txt \
-  --output legal-hold-api-results.json
+  --attempts 6 \
+  --screenshot-dir "$HOME/Desktop/Legal-Hold-Evidence" \
+  --output "$HOME/Desktop/Legal-Hold-Evidence/results.json"
 ```
 
-API results are classified conservatively:
+Progress goes to stderr and the complete run document goes to stdout as JSON. The helper uses Chrome, not a direct device API call, and keeps the transient `not found` retry behavior.
 
-- `on_legal_hold` only for a recognized flagged value.
-- `not_on_legal_hold` only for explicit `NotFlagged`.
-- `unknown` for `NotFound`, missing CMDB data, empty values, or unfamiliar values.
+## Requirements
 
-Only explicit `NotFlagged` sets `safe_to_proceed` to `true`.
-
-The approved PC Toolkit page and API URLs are built into the helper, so a fresh clone works without environment setup. Optional overrides can be supplied through the ignored `config.local.env` file, which the `.command` launchers load automatically, or exported from a terminal:
-
-```sh
-export PC_TOOLKIT_URL='https://approved-toolkit-page.example/'
-export PC_TOOLKIT_API_URL='https://approved-toolkit-api.example/v1/Computers'
-export PC_TOOLKIT_ELEVATED_ROLE='approved-role-value'
-export PC_TOOLKIT_SCREENSHOT_DIR="$HOME/Desktop/PC-Toolkit-Legal-Hold"
-```
-
-`PC_TOOLKIT_SCREENSHOT_DIR` controls the screenshot destination for the Chrome shortcut, the web UI, and the lower-level command. Each captured file is named exactly `<SERIAL>.png`; no screenshot is created unless the legal-hold value is explicitly `NotFlagged`.
-
-## Safety boundary
-
-There is intentionally no Helix write route in the frontend or local bridge. “Submit closure” is disabled. The app can prepare changes, evidence, and JSON for review, but a future Helix adapter should only be added after endpoint/field mapping, authentication, authorization, audit logging, concurrency checks, and a staged approval workflow are verified on the work network.
-
-PC Toolkit responses and screenshots can include employee and device information. Keep generated artifacts on approved storage and never commit `runtime/`, screenshots, exported JSON, browser profiles, HAR files, or credentials.
-
-## Development and validation
-
-Requirements: macOS, Python 3.10+, Node.js 22.13+, Google Chrome, and corporate access for live PC Toolkit calls.
+macOS, Python 3.10+, Node.js 22.13+, Google Chrome, and approved access to PC Toolkit.
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -95,17 +69,3 @@ npm install --cache ../.npm-cache
 npm run lint
 npm run build
 ```
-
-Architecture:
-
-- `web/` — React/Vinext user interface.
-- `bridge_server.py` — localhost-only PC Toolkit and template-storage bridge.
-- `pc_toolkit_legal_hold.py` — API and Playwright batch engine.
-- `tests/` — parsing, classification, retry, and bridge tests.
-
-## Current limitations
-
-- Ticket records are synthetic; live Helix search/edit/close is not connected.
-- PC Toolkit calls only work where its internal hostname and authentication are available.
-- Browser capture may need interactive sign-in on first use.
-- The workbench is local and is not deployed as a hosted site because its companion service and internal APIs are workstation-bound.

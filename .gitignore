@@ -1,6 +1,7 @@
 .venv/
 .npm-cache/
 runtime/
+*.pid
 config.local.env
 .env.local
 __pycache__/
@@ -9,6 +10,9 @@ web/node_modules/
 web/.next/
 web/dist/
 web/.wrangler/
+/.next/
+/.vinext/
+/next-env.d.ts
 pc-toolkit-screenshots/
 legal-hold-screenshots/
 legal-hold-results.json

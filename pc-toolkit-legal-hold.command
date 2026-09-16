@@ -20,15 +20,7 @@ if [[ ! -x "$venv_dir/bin/python" ]]; then
   python3 -m venv "$venv_dir"
 fi
 
-api_only=false
-for argument in "$@"; do
-  if [[ "$argument" == "--api-only" ]]; then
-    api_only=true
-    break
-  fi
-done
-
-if [[ "$api_only" == false ]] && ! "$venv_dir/bin/python" -c 'import playwright' >/dev/null 2>&1; then
+if ! "$venv_dir/bin/python" -c 'import playwright' >/dev/null 2>&1; then
   print -u2 "Installing Playwright into the private environment..."
   "$venv_dir/bin/python" -m pip install -r "$script_dir/requirements.txt"
 fi

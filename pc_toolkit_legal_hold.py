@@ -2,7 +2,8 @@
 """Batch PC Toolkit legal-hold checks through Google Chrome.
 
 The program drives the real PC Toolkit UI, observes the device API response,
-retries transient "not found" results, takes an evidence screenshot, and emits
+retries transient "not found" results up to a configured attempt limit, takes
+an evidence screenshot only for an explicit NotFlagged result, and emits
 machine-readable JSON. Progress is written to stderr; stdout is JSON only.
 """
 
@@ -17,23 +18,24 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
-from urllib import error as urllib_error
-from urllib import request as urllib_request
-from urllib.parse import quote, unquote, urlencode, urlsplit
+from urllib.parse import unquote, urlsplit
 
 
 DEFAULT_URL = (
     "https://portal.platform.infraportal.syd.c1.macquarie.com/"
     "details/45sf2q7-07c"
 )
-DEFAULT_API_URL = (
-    "https://autoscalecomponent.prod-eapi-devices.wkpautoapps.iptauto.syd.c1."
-    "macquarie.com/v1/Computers"
-)
 SEARCH_INPUT_SELECTOR = "#standard-search"
 RESULTS_TITLE = "Found Devices (Click on row to expand for more details)"
 DEVICE_API_PATH = "/v1/Computers/"
 SERIAL_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
+
+
+def environment_int(name: str, fallback: int) -> int:
+    try:
+        return int(os.environ.get(name, fallback))
+    except (TypeError, ValueError):
+        return fallback
 
 
 def utc_now() -> str:
@@ -101,7 +103,7 @@ def response_has_devices(payload: Any) -> bool:
 
 
 def classify_legal_hold(value: Any, cmdb_record_exists: Any = None) -> dict[str, Any]:
-    """Conservatively classify the API's legalHold value.
+    """Conservatively classify the returned legalHold value.
 
     The captured PC Toolkit UI considers only NotFlagged to be clear. NotFound
     is displayed as a warning, so it must remain unknown rather than being
@@ -309,7 +311,7 @@ async def process_serial(
             "attempt": attempt_number,
             "started_at": utc_now(),
             "http_status": None,
-            "api_url": None,
+            "response_url": None,
             "data": None,
             "error": None,
         }
@@ -322,7 +324,7 @@ async def process_serial(
                 await trigger_search(page, serial)
             response = await response_info.value
             attempt["http_status"] = response.status
-            attempt["api_url"] = response.url
+            attempt["response_url"] = response.url
             payload, parse_error = await read_response(response)
             attempt["data"] = payload
             attempt["error"] = parse_error
@@ -361,7 +363,7 @@ async def process_serial(
             reason = (
                 f"HTTP {response.status}"
                 if not response.ok
-                else "API returned no devices"
+                else "PC Toolkit returned no devices"
             )
             log(f"[{serial}] {reason}; retrying")
         except Exception as exc:
@@ -376,160 +378,6 @@ async def process_serial(
     result["error"] = f"no device record after {max_attempts} attempts"
     log(f"[{serial}] failed after {max_attempts} attempts")
     return result
-
-
-def api_get_once(
-    api_base_url: str,
-    serial: str,
-    timeout_seconds: float,
-    elevated_role: str | None,
-) -> tuple[int | None, str, Any | None, str | None]:
-    url = f"{api_base_url.rstrip('/')}/{quote(serial, safe='')}?{urlencode({'sources': 'cmdb,sccm'})}"
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": "PC-Toolkit-Legal-Hold-Automation/1.0",
-    }
-    if elevated_role:
-        headers["X-Max-Elevated-Role"] = elevated_role
-    req = urllib_request.Request(url, headers=headers, method="GET")
-    try:
-        with urllib_request.urlopen(req, timeout=timeout_seconds) as response:
-            status = response.status
-            raw = response.read()
-    except urllib_error.HTTPError as exc:
-        status = exc.code
-        raw = exc.read()
-    except Exception as exc:
-        return None, url, None, f"{type(exc).__name__}: {exc}"
-
-    text = raw.decode("utf-8", errors="replace")
-    try:
-        return status, url, json.loads(text), None
-    except json.JSONDecodeError as exc:
-        return status, url, {"raw_text": text}, f"response was not JSON: {exc}"
-
-
-async def process_serial_api(
-    serial: str,
-    api_base_url: str,
-    max_attempts: int,
-    retry_delay_seconds: float,
-    request_timeout_seconds: float,
-    elevated_role: str | None,
-) -> dict[str, Any]:
-    result: dict[str, Any] = {
-        "serial": serial,
-        "success": False,
-        "attempt_count": 0,
-        "attempts": [],
-        "legal_holds": [],
-        "overall_legal_hold": "unknown",
-        "screenshot": None,
-        "screenshot_scope": None,
-        "final_data": None,
-        "error": None,
-    }
-    for attempt_number in range(1, max_attempts + 1):
-        log(f"[{serial}] API attempt {attempt_number}/{max_attempts}")
-        started_at = utc_now()
-        status, url, payload, request_error = await asyncio.to_thread(
-            api_get_once,
-            api_base_url,
-            serial,
-            request_timeout_seconds,
-            elevated_role,
-        )
-        attempt = {
-            "attempt": attempt_number,
-            "started_at": started_at,
-            "finished_at": utc_now(),
-            "http_status": status,
-            "api_url": url,
-            "data": payload,
-            "error": request_error,
-        }
-        result["attempts"].append(attempt)
-        result["attempt_count"] = attempt_number
-
-        if status is not None and 200 <= status < 300 and response_has_devices(payload):
-            holds = extract_legal_holds(payload)
-            result.update(
-                {
-                    "success": True,
-                    "legal_holds": holds,
-                    "overall_legal_hold": overall_legal_hold(holds),
-                    "final_data": payload,
-                }
-            )
-            log(
-                f"[{serial}] found; legal-hold classification: "
-                f"{result['overall_legal_hold']}"
-            )
-            return result
-
-        if request_error:
-            log(f"[{serial}] API attempt failed: {request_error}")
-        elif status is not None and not 200 <= status < 300:
-            if status in {401, 403}:
-                result["error"] = (
-                    f"API access denied with HTTP {status}; run on the corporate network "
-                    "and provide the approved role/authentication context"
-                )
-                log(f"[{serial}] {result['error']}")
-                return result
-            if 400 <= status < 500 and status != 429:
-                result["error"] = f"API rejected the lookup with HTTP {status}"
-                log(f"[{serial}] {result['error']}")
-                return result
-            log(f"[{serial}] API returned HTTP {status}; retrying")
-        else:
-            log(f"[{serial}] API returned no devices; retrying")
-        if attempt_number < max_attempts:
-            await asyncio.sleep(retry_delay_seconds)
-
-    result["error"] = f"no device record after {max_attempts} attempts"
-    return result
-
-
-async def run_api_only(
-    args: argparse.Namespace, serials: list[str]
-) -> tuple[dict[str, Any], int]:
-    document: dict[str, Any] = {
-        "schema_version": 1,
-        "mode": "api-only",
-        "started_at": utc_now(),
-        "finished_at": None,
-        "pc_toolkit_api_url": args.api_url,
-        "elevated_role_header_sent": bool(args.elevated_role),
-        "results": [],
-        "summary": {},
-    }
-    for serial in serials:
-        result = await process_serial_api(
-            serial=serial,
-            api_base_url=args.api_url,
-            max_attempts=args.attempts,
-            retry_delay_seconds=args.retry_delay,
-            request_timeout_seconds=args.request_timeout,
-            elevated_role=args.elevated_role,
-        )
-        document["results"].append(result)
-        if args.output:
-            write_json_private(args.output.expanduser().resolve(), document)
-
-    succeeded = sum(1 for item in document["results"] if item["success"])
-    failed = len(document["results"]) - succeeded
-    document["finished_at"] = utc_now()
-    document["summary"] = {
-        "requested": len(serials),
-        "succeeded": succeeded,
-        "failed": failed,
-        "classifications": classification_summary(document["results"]),
-    }
-    if args.output:
-        write_json_private(args.output.expanduser().resolve(), document)
-        log(f"JSON saved to {args.output.expanduser().resolve()}")
-    return document, 0 if failed == 0 else 2
 
 
 async def run(args: argparse.Namespace, serials: list[str]) -> tuple[dict[str, Any], int]:
@@ -608,7 +456,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Search PC Toolkit in Chrome, retry transient not-found results, "
-            "capture legal-hold screenshots, and return all API data as JSON."
+            "capture eligible legal-hold screenshots, and return the browser data as JSON."
         )
     )
     parser.add_argument("serials", nargs="*", help="serial numbers to search")
@@ -634,7 +482,10 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--attempts", type=int, default=6, help="maximum searches per serial (default: 6)"
+        "--attempts",
+        type=int,
+        default=environment_int("PC_TOOLKIT_MAX_ATTEMPTS", 6),
+        help="maximum searches per serial (default: PC_TOOLKIT_MAX_ATTEMPTS or 6)",
     )
     parser.add_argument(
         "--retry-delay",
@@ -646,7 +497,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--request-timeout",
         type=float,
         default=30.0,
-        help="seconds to wait for each device API response (default: 30)",
+        help="seconds to wait for each device response (default: 30)",
     )
     parser.add_argument(
         "--login-timeout",
@@ -658,24 +509,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--url",
         default=os.environ.get("PC_TOOLKIT_URL", DEFAULT_URL),
         help="PC Toolkit page URL (or set PC_TOOLKIT_URL)",
-    )
-    parser.add_argument(
-        "--api-only",
-        action="store_true",
-        help="call the device API directly; do not open Chrome or take screenshots",
-    )
-    parser.add_argument(
-        "--api-url",
-        default=os.environ.get("PC_TOOLKIT_API_URL", DEFAULT_API_URL),
-        help="device API base URL (or set PC_TOOLKIT_API_URL)",
-    )
-    parser.add_argument(
-        "--elevated-role",
-        default=os.environ.get("PC_TOOLKIT_ELEVATED_ROLE"),
-        help=(
-            "optional X-Max-Elevated-Role value; prefer the "
-            "PC_TOOLKIT_ELEVATED_ROLE environment variable"
-        ),
     )
     parser.add_argument(
         "--profile-dir",
@@ -703,12 +536,12 @@ def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> 
         parser.error("provide at least one serial number or use --input")
     if args.attempts < 1:
         parser.error("--attempts must be at least 1")
+    if args.attempts > 20:
+        parser.error("--attempts cannot exceed 20")
     if args.retry_delay < 0:
         parser.error("--retry-delay cannot be negative")
     if args.request_timeout <= 0:
         parser.error("--request-timeout must be positive")
-    if args.headless and args.api_only:
-        parser.error("--headless has no effect with --api-only; remove one of them")
     return serials
 
 
@@ -717,20 +550,17 @@ def main() -> int:
     args = parser.parse_args()
     serials = validate_args(parser, args)
     try:
-        runner = run_api_only if args.api_only else run
-        document, exit_code = asyncio.run(runner(args, serials))
+        document, exit_code = asyncio.run(run(args, serials))
     except KeyboardInterrupt:
         log("Interrupted")
         return 130
     except Exception as exc:
         document = {
             "schema_version": 1,
-            "mode": "api-only" if args.api_only else "chrome",
+            "mode": "chrome",
             "started_at": None,
             "finished_at": utc_now(),
-            (
-                "pc_toolkit_api_url" if args.api_only else "pc_toolkit_url"
-            ): args.api_url if args.api_only else args.url,
+            "pc_toolkit_url": args.url,
             "results": [],
             "summary": {"requested": len(serials), "succeeded": 0, "failed": len(serials)},
             "fatal_error": f"{type(exc).__name__}: {exc}",

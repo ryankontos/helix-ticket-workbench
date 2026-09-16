@@ -121,32 +121,6 @@ class ResponseTests(unittest.TestCase):
         )
         self.assertFalse(MODULE.screenshot_allowed([{"classification": "unknown"}]))
 
-    def test_api_mode_retries_not_found_then_returns_full_payload(self):
-        not_found = {"devicesFound": 0, "devices": []}
-        with mock.patch.object(
-            MODULE,
-            "api_get_once",
-            side_effect=[
-                (200, "https://example.test/ABC123", not_found, None),
-                (200, "https://example.test/ABC123", self.payload, None),
-            ],
-        ):
-            result = asyncio.run(
-                MODULE.process_serial_api(
-                    serial="ABC123",
-                    api_base_url="https://example.test",
-                    max_attempts=3,
-                    retry_delay_seconds=0,
-                    request_timeout_seconds=1,
-                    elevated_role=None,
-                )
-            )
-        self.assertTrue(result["success"])
-        self.assertEqual(result["attempt_count"], 2)
-        self.assertEqual(result["attempts"][0]["data"], not_found)
-        self.assertEqual(result["final_data"], self.payload)
-        self.assertEqual(result["overall_legal_hold"], "not_on_legal_hold")
-
     def test_classification_summary_lists_serials(self):
         summary = MODULE.classification_summary(
             [
