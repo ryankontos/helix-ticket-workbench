@@ -8,11 +8,19 @@ if [[ -f "$project_dir/config.local.env" ]]; then
   set +a
 fi
 if (( $# == 0 )); then
-  print "Enter serial numbers separated by spaces:"
+  print "Enter serial numbers separated by commas or spaces:"
   read -r serial_line
-  serials=(${=serial_line})
+  serial_line=${serial_line//,/ }
+  serial_line=${serial_line//;/ }
+  read -rA serials <<< "$serial_line"
 else
-  serials=("$@")
+  serials=()
+  for value in "$@"; do
+    value=${value//,/ }
+    value=${value//;/ }
+    read -rA parts <<< "$value"
+    serials+=("${parts[@]}")
+  done
 fi
 
 if (( ${#serials[@]} == 0 )); then

@@ -70,6 +70,7 @@ export default function Home() {
   const [maxAttempts, setMaxAttempts] = useState(Math.min(20, Math.max(1, attemptsDefault)));
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [historySearch, setHistorySearch] = useState('');
+  const [currentSessionIds, setCurrentSessionIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<HistoryDetail | null>(null);
   const [busy, setBusy] = useState(false);
@@ -121,7 +122,9 @@ export default function Home() {
       if (!response.ok) throw new Error(body.error || 'The check failed.');
       const records = Array.isArray(body.history) ? body.history as HistoryRecord[] : [];
       setHistory(records);
-      if (body.history_records?.[0]) setSelectedId(body.history_records[0].id);
+      const newRecords = Array.isArray(body.history_records) ? body.history_records as HistoryRecord[] : [];
+      setCurrentSessionIds(ids => [...new Set([...ids, ...newRecords.map(item => item.id)])]);
+      if (newRecords[0]) setSelectedId(newRecords[0].id);
       setBridgeOnline(true);
       setError('');
       setMessage(`${serials.length} serial${serials.length === 1 ? '' : 's'} checked`);
@@ -167,6 +170,9 @@ export default function Home() {
     if (!query) return history;
     return history.filter(item => [item.serial, item.device_name, item.legal_hold, item.overall_legal_hold].some(value => String(value || '').toLowerCase().includes(query)));
   }, [history, historySearch]);
+  const currentIds = useMemo(() => new Set(currentSessionIds), [currentSessionIds]);
+  const currentHistory = filteredHistory.filter(item => currentIds.has(item.id));
+  const previousHistory = filteredHistory.filter(item => !currentIds.has(item.id));
 
   const counts = {
     total: history.length,
@@ -184,7 +190,7 @@ export default function Home() {
       </header>
 
       <form className="check-form" onSubmit={runCheck}>
-        <label className="control serial-control"><div className="control-heading"><span>Serial numbers</span><small>{enteredSerialCount ? `${enteredSerialCount} ready` : 'Batch lookup'}</small></div><textarea value={serialInput} onChange={event => setSerialInput(event.target.value)} placeholder={'One per line'} rows={4} /></label>
+        <label className="control serial-control"><div className="control-heading"><span>Serial numbers</span><small>{enteredSerialCount ? `${enteredSerialCount} ready` : 'Batch lookup'}</small></div><textarea value={serialInput} onChange={event => setSerialInput(event.target.value)} placeholder={'One per line or comma-separated'} rows={4} /></label>
         <div className="form-side">
           <label className="control"><span>Screenshot folder</span><div className="input-with-button"><input value={folder} onChange={event => setFolder(event.target.value)} /><button type="button" onClick={() => setFolder('~/Desktop/Legal-Hold-Evidence')}>Desktop</button></div></label>
           <div className="control"><span>Save mode</span><div className="choice-row"><button type="button" className={createNewFolder ? 'chosen' : ''} onClick={() => setCreateNewFolder(true)}>New folder</button><button type="button" className={!createNewFolder ? 'chosen' : ''} onClick={() => setCreateNewFolder(false)}>Add to folder</button></div></div>
@@ -201,10 +207,8 @@ export default function Home() {
         <aside className="history-panel">
           <div className="panel-heading"><h2>History</h2><span>{filteredHistory.length}</span></div>
           <input className="history-search" aria-label="Search history" placeholder="Search serials or devices" value={historySearch} onChange={event => setHistorySearch(event.target.value)} />
-          <div className="history-list">
-            {!filteredHistory.length && <div className="empty">No previous checks</div>}
-            {filteredHistory.map(item => <button type="button" className={`history-row ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => setSelectedId(item.id)}><div className={`status-dot ${statusClass(item.overall_legal_hold)}`} /><div><strong>{item.serial}</strong><span>{item.device_name || 'No device name'}</span><small>{checkedLabel(item.checked_at)}</small></div><em className={statusClass(item.overall_legal_hold)}>{holdLabel(item.overall_legal_hold)}</em></button>)}
-          </div>
+          <HistoryGroup title="This session" records={currentHistory} selectedId={selectedId} onSelect={setSelectedId} emptyText="No checks this session" />
+          <HistoryGroup title="Previous sessions" records={previousHistory} selectedId={selectedId} onSelect={setSelectedId} emptyText="No previous checks" />
         </aside>
 
         <section className="detail-panel">
@@ -213,6 +217,10 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+function HistoryGroup({ title, records, selectedId, onSelect, emptyText }: { title: string; records: HistoryRecord[]; selectedId: string; onSelect: (id: string) => void; emptyText: string }) {
+  return <section className="history-group"><div className="history-group-heading"><h3>{title}</h3><span>{records.length}</span></div><div className="history-list">{!records.length && <div className="empty">{emptyText}</div>}{records.map(item => <button type="button" className={`history-row ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => onSelect(item.id)}><div className={`status-dot ${statusClass(item.overall_legal_hold)}`} /><div><strong>{item.serial}</strong><span>{item.device_name || 'No device name'}</span><small>{checkedLabel(item.checked_at)}</small></div><em className={statusClass(item.overall_legal_hold)}>{holdLabel(item.overall_legal_hold)}</em></button>)}</div></section>;
 }
 
 function ResultDetail({ detail, result, onOpenScreenshot, onRevealScreenshot }: { detail: HistoryDetail; result: ToolkitResult; onOpenScreenshot: (path: string) => void; onRevealScreenshot: (path: string) => void }) {

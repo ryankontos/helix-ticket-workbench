@@ -12,7 +12,7 @@ Double-click **Stop Legal Hold Checker.command** when finished. Pressing Control
 
 The page supports:
 
-- Multiple serials, one per line.
+- Multiple serials, one per line or comma-separated.
 - A screenshot folder path.
 - **New folder** to create a timestamped run folder inside that path.
 - **Add to folder** to place screenshots directly in the selected folder.
