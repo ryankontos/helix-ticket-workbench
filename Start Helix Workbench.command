@@ -49,7 +49,8 @@ trap cleanup EXIT INT TERM
 bridge_pid=$!
 NEXT_PUBLIC_BRIDGE_URL="http://127.0.0.1:$bridge_port" \
 NEXT_PUBLIC_SCREENSHOT_DIR="${PC_TOOLKIT_SCREENSHOT_DIR:-$HOME/Desktop/PC-Toolkit-Legal-Hold}" \
-npm --prefix "$web_dir" run dev -- --host 127.0.0.1 --port "$web_port" >"$runtime_dir/web.log" 2>&1 &
+HELIX_LOCAL_NODE=1 \
+npm --prefix "$web_dir" run dev -- --hostname 127.0.0.1 --port "$web_port" >"$runtime_dir/web.log" 2>&1 &
 web_pid=$!
 
 for attempt in {1..60}; do

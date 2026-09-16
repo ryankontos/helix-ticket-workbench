@@ -24,7 +24,7 @@ Double-click **Start Helix Workbench.command**, or run:
 ./Start\ Helix\ Workbench.command
 ```
 
-On first launch it creates a Python virtual environment, installs Playwright and the web dependencies, then opens Chrome at `http://127.0.0.1:3210`. The companion API binds only to `127.0.0.1:47831`.
+On first launch it creates a Python virtual environment, installs Playwright and the web dependencies, then opens Chrome at `http://127.0.0.1:3210`. The companion API binds only to `127.0.0.1:47831`. The launcher uses local Node mode and skips Cloudflare `workerd`, which avoids Santa blocking the dashboard runtime.
 
 The UI contains synthetic ticket/device examples until it is run against PC Toolkit in the work environment. Templates are saved under `runtime/`, which is excluded from Git.
 
@@ -32,7 +32,7 @@ The project root has a Finder-ready shortcut for each workflow:
 
 | Shortcut | Purpose |
 | --- | --- |
-| **Start Helix Workbench.command** | Starts the web UI and localhost companion bridge, then opens Chrome. Keep the Terminal window open while using it. |
+| **Start Helix Workbench.command** | Starts the Node-based web UI and localhost companion bridge, then opens Chrome. Keep the Terminal window open while using it. |
 | **PC Toolkit API Check.command** | Prompts for serials, performs read-only API checks, and opens the saved JSON folder. |
 | **PC Toolkit Screenshot Capture.command** | Prompts for serials, searches in Chrome, saves full-page screenshots plus JSON, and opens the saved folder. |
 | **pc-toolkit-legal-hold.command** | Advanced command-line entry point for input files and custom options. |

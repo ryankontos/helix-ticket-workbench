@@ -11,6 +11,7 @@ const { d1, r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
+const isLocalNodeMode = process.env.HELIX_LOCAL_NODE === '1';
 
 const localBindingConfig = {
   main: 'vinext/server/app-router-entry',
@@ -42,20 +43,24 @@ export default defineConfig(async () => {
   process.env.MINIFLARE_REGISTRY_PATH ??= '.wrangler/registry';
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
-  const { cloudflare } = await import('@cloudflare/vite-plugin');
+  // Local Node mode skips this import so Santa does not need to approve the
+  // bundled workerd executable just to run the workstation dashboard.
+  const plugins = [vinext(), sites()];
+  if (!isLocalNodeMode) {
+    const { cloudflare } = await import('@cloudflare/vite-plugin');
+    plugins.push(
+      cloudflare({
+        viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
+        config: localBindingConfig,
+      }),
+    );
+  }
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
-    plugins: [
-      vinext(),
-      sites(),
-      cloudflare({
-        viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
-        config: localBindingConfig,
-      }),
-    ],
+    plugins,
   };
 });
