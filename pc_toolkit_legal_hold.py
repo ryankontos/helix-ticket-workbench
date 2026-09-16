@@ -22,8 +22,14 @@ from urllib import request as urllib_request
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
 
-DEFAULT_URL = "https://pc-toolkit.example.invalid/"
-DEFAULT_API_URL = "https://pc-toolkit-api.example.invalid/v1/Computers"
+DEFAULT_URL = (
+    "https://portal.platform.infraportal.syd.c1.macquarie.com/"
+    "details/45sf2q7-07c"
+)
+DEFAULT_API_URL = (
+    "https://autoscalecomponent.prod-eapi-devices.wkpautoapps.iptauto.syd.c1."
+    "macquarie.com/v1/Computers"
+)
 SEARCH_INPUT_SELECTOR = "#standard-search"
 RESULTS_TITLE = "Found Devices (Click on row to expand for more details)"
 DEVICE_API_PATH = "/v1/Computers/"

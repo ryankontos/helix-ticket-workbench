@@ -65,7 +65,7 @@ API results are classified conservatively:
 
 Only explicit `NotFlagged` sets `safe_to_proceed` to `true`.
 
-Copy `.env.example` to the ignored `config.local.env` file and replace its placeholders with approved work-environment values. The `.command` launchers load it automatically. Configuration can also be exported from a terminal:
+The approved PC Toolkit page and API URLs are built into the helper, so a fresh clone works without environment setup. Optional overrides can be supplied through the ignored `config.local.env` file, which the `.command` launchers load automatically, or exported from a terminal:
 
 ```sh
 export PC_TOOLKIT_URL='https://approved-toolkit-page.example/'
