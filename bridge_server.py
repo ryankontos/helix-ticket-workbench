@@ -144,7 +144,11 @@ class BridgeHandler(BaseHTTPRequestHandler):
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
         if capture:
-            output_text = str(value.get("outputDir") or "~/Desktop/PC-Toolkit-Legal-Hold")
+            output_text = str(
+                value.get("outputDir")
+                or os.environ.get("PC_TOOLKIT_SCREENSHOT_DIR")
+                or "~/Desktop/PC-Toolkit-Legal-Hold"
+            )
             output_dir = Path(output_text).expanduser().resolve()
         else:
             output_dir = (RUNTIME / "lookups" / stamp).resolve()

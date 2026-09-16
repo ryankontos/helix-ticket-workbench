@@ -31,6 +31,15 @@ class SerialParsingTests(unittest.TestCase):
             path.write_text(json.dumps({"serials": ["one", "TWO"]}))
             self.assertEqual(MODULE.parse_serial_file(path), ["ONE", "TWO"])
 
+    def test_screenshot_directory_can_come_from_environment(self):
+        with mock.patch.dict(
+            MODULE.os.environ,
+            {"PC_TOOLKIT_SCREENSHOT_DIR": "/tmp/legal-hold-evidence"},
+            clear=False,
+        ):
+            args = MODULE.build_parser().parse_args(["ABC123"])
+        self.assertEqual(args.screenshot_dir, Path("/tmp/legal-hold-evidence"))
+
 
 class ResponseTests(unittest.TestCase):
     def setUp(self):
@@ -102,6 +111,15 @@ class ResponseTests(unittest.TestCase):
             MODULE.overall_legal_hold([{"classification": "unknown"}]),
             "unknown",
         )
+
+    def test_screenshots_are_allowed_only_for_not_flagged(self):
+        self.assertTrue(
+            MODULE.screenshot_allowed([{"classification": "not_on_legal_hold"}])
+        )
+        self.assertFalse(
+            MODULE.screenshot_allowed([{"classification": "on_legal_hold"}])
+        )
+        self.assertFalse(MODULE.screenshot_allowed([{"classification": "unknown"}]))
 
     def test_api_mode_retries_not_found_then_returns_full_payload(self):
         not_found = {"devicesFound": 0, "devices": []}

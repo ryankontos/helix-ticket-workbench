@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { defaultTemplates, demoToolkitResults, fieldOptions, ModificationTemplate, resolveTemplate, Ticket, tickets, ToolkitResult, variableTokens, Workspace } from './data';
 
 const bridgeDefault = process.env.NEXT_PUBLIC_BRIDGE_URL || 'http://127.0.0.1:47831';
+const screenshotDefault = process.env.NEXT_PUBLIC_SCREENSHOT_DIR || '~/Desktop/PC-Toolkit-Legal-Hold';
 
 const nav: Array<{ id: Workspace; icon: string; label: string }> = [
   { id: 'queue', icon: '▤', label: 'Ticket queue' },
@@ -28,7 +29,7 @@ export default function Home() {
   const [templateDraft, setTemplateDraft] = useState<ModificationTemplate>(defaultTemplates[0]);
   const [toolkitInput, setToolkitInput] = useState('C02ZK41\nFVFG91K');
   const [toolkitResults, setToolkitResults] = useState<ToolkitResult[]>([]);
-  const [outputDir, setOutputDir] = useState('~/Desktop/PC-Toolkit-Legal-Hold');
+  const [outputDir, setOutputDir] = useState(screenshotDefault);
   const [toolkitBusy, setToolkitBusy] = useState<'api' | 'screenshots' | null>(null);
   const [toolkitError, setToolkitError] = useState('');
   const [bridgeUrl, setBridgeUrl] = useState(bridgeDefault);

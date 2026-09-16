@@ -2,6 +2,11 @@
 set -euo pipefail
 
 project_dir=${0:A:h}
+if [[ -f "$project_dir/config.local.env" ]]; then
+  set -a
+  source "$project_dir/config.local.env"
+  set +a
+fi
 if (( $# == 0 )); then
   print "Enter serial numbers separated by spaces:"
   read -r serial_line
@@ -15,8 +20,12 @@ if (( ${#serials[@]} == 0 )); then
   exit 1
 fi
 
-stamp=$(date +%Y%m%d-%H%M%S)
-output_dir="$HOME/Desktop/PC-Toolkit-Legal-Hold-$stamp"
+if [[ -n "${PC_TOOLKIT_SCREENSHOT_DIR:-}" ]]; then
+  output_dir="$PC_TOOLKIT_SCREENSHOT_DIR"
+else
+  stamp=$(date +%Y%m%d-%H%M%S)
+  output_dir="$HOME/Desktop/PC-Toolkit-Legal-Hold-$stamp"
+fi
 mkdir -p "$output_dir"
 chmod 700 "$output_dir"
 "$project_dir/pc-toolkit-legal-hold.command" --output "$output_dir/results.json" --screenshot-dir "$output_dir" "${serials[@]}"

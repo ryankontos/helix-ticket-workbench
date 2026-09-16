@@ -175,6 +175,11 @@ def overall_legal_hold(items: list[dict[str, Any]]) -> str:
     return "unknown"
 
 
+def screenshot_allowed(items: list[dict[str, Any]]) -> bool:
+    """Allow evidence capture only for an explicit NotFlagged result."""
+    return overall_legal_hold(items) == "not_on_legal_hold"
+
+
 def classification_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
     states = ("on_legal_hold", "not_on_legal_hold", "unknown")
     serials = {
@@ -325,21 +330,32 @@ async def process_serial(
             result["attempts"].append(attempt)
 
             if response.ok and response_has_devices(payload):
-                screenshot_path = screenshot_dir / f"{safe_filename(serial)}.png"
-                scope = await capture_results(page, screenshot_path, serial)
+                holds = extract_legal_holds(payload)
+                hold_state = overall_legal_hold(holds)
                 result.update(
                     {
                         "success": True,
-                        "legal_holds": extract_legal_holds(payload),
-                        "screenshot": str(screenshot_path.resolve()),
-                        "screenshot_scope": scope,
+                        "legal_holds": holds,
+                        "overall_legal_hold": hold_state,
                         "final_data": payload,
                     }
                 )
-                result["overall_legal_hold"] = overall_legal_hold(
-                    result["legal_holds"]
-                )
-                log(f"[{serial}] found; screenshot saved to {screenshot_path}")
+                if screenshot_allowed(holds):
+                    screenshot_path = screenshot_dir / f"{safe_filename(serial)}.png"
+                    scope = await capture_results(page, screenshot_path, serial)
+                    result.update(
+                        {
+                            "screenshot": str(screenshot_path.resolve()),
+                            "screenshot_scope": scope,
+                        }
+                    )
+                    log(f"[{serial}] NotFlagged; screenshot saved to {screenshot_path}")
+                else:
+                    result["screenshot_scope"] = "skipped-not-notflagged"
+                    log(
+                        f"[{serial}] legal-hold classification is {hold_state}; "
+                        "screenshot not captured"
+                    )
                 return result
 
             reason = (
@@ -609,8 +625,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--screenshot-dir",
         type=Path,
-        default=Path("pc-toolkit-screenshots"),
-        help="screenshot directory (default: ./pc-toolkit-screenshots)",
+        default=Path(
+            os.environ.get("PC_TOOLKIT_SCREENSHOT_DIR", "pc-toolkit-screenshots")
+        ),
+        help=(
+            "screenshot directory (default: PC_TOOLKIT_SCREENSHOT_DIR or "
+            "./pc-toolkit-screenshots)"
+        ),
     )
     parser.add_argument(
         "--attempts", type=int, default=6, help="maximum searches per serial (default: 6)"

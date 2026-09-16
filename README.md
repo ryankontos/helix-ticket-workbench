@@ -13,6 +13,7 @@ The project is intended to run on an approved corporate Mac/network. It contains
 - Retry handling for the known transient `not found` result (six attempts by default).
 - Raw PC Toolkit payloads shown per serial and retained in the generated JSON.
 - Owner-only local template, result, and screenshot storage.
+- Screenshot capture is restricted to explicit `NotFlagged` results; flagged and unknown results never produce screenshots.
 - Double-clickable macOS `.command` launchers.
 
 ## Start the web app
@@ -71,7 +72,10 @@ The approved PC Toolkit page and API URLs are built into the helper, so a fresh 
 export PC_TOOLKIT_URL='https://approved-toolkit-page.example/'
 export PC_TOOLKIT_API_URL='https://approved-toolkit-api.example/v1/Computers'
 export PC_TOOLKIT_ELEVATED_ROLE='approved-role-value'
+export PC_TOOLKIT_SCREENSHOT_DIR="$HOME/Desktop/PC-Toolkit-Legal-Hold"
 ```
+
+`PC_TOOLKIT_SCREENSHOT_DIR` controls the screenshot destination for the Chrome shortcut, the web UI, and the lower-level command. Each captured file is named exactly `<SERIAL>.png`; no screenshot is created unless the legal-hold value is explicitly `NotFlagged`.
 
 ## Safety boundary
 
