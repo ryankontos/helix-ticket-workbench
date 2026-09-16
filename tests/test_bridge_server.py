@@ -72,6 +72,21 @@ class BridgeServerTests(unittest.TestCase):
         remote_response, _ = self.request("/health", origin="https://malicious.example")
         self.assertIsNone(remote_response.headers["Access-Control-Allow-Origin"])
 
+    def test_reveal_screenshot_uses_finder_reveal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            screenshot = Path(directory) / "ABC123.png"
+            screenshot.write_bytes(b"png")
+            handler = MODULE.BridgeHandler.__new__(MODULE.BridgeHandler)
+            handler.send_json = mock.Mock()
+            with mock.patch.object(
+                MODULE,
+                "read_history",
+                return_value=[{"screenshot": str(screenshot.resolve())}],
+            ), mock.patch.object(MODULE.subprocess, "Popen") as popen:
+                handler.reveal_screenshot({"path": str(screenshot)})
+            popen.assert_called_once_with(["open", "-R", str(screenshot.resolve())])
+            handler.send_json.assert_called_once_with(200, {"ok": True})
+
     def test_check_stores_run_device_info_and_history_separately(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

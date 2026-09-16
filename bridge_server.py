@@ -175,6 +175,8 @@ class BridgeHandler(BaseHTTPRequestHandler):
                 self.run_pc_toolkit(value)
             elif path == "/api/open-screenshot":
                 self.open_screenshot(value)
+            elif path == "/api/reveal-screenshot":
+                self.reveal_screenshot(value)
             else:
                 self.send_json(404, {"error": "not found"})
         except (ValueError, json.JSONDecodeError) as exc:
@@ -259,7 +261,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             "history": new_history + old_history,
         })
 
-    def open_screenshot(self, value: Any) -> None:
+    def recorded_screenshot(self, value: Any) -> Path:
         path_text = value.get("path") if isinstance(value, dict) else None
         if not isinstance(path_text, str):
             raise ValueError("path is required")
@@ -271,7 +273,16 @@ class BridgeHandler(BaseHTTPRequestHandler):
         }
         if str(target) not in allowed or not target.is_file():
             raise ValueError("screenshot is not a recorded local evidence file")
+        return target
+
+    def open_screenshot(self, value: Any) -> None:
+        target = self.recorded_screenshot(value)
         subprocess.Popen(["open", str(target)])
+        self.send_json(200, {"ok": True})
+
+    def reveal_screenshot(self, value: Any) -> None:
+        target = self.recorded_screenshot(value)
+        subprocess.Popen(["open", "-R", str(target)])
         self.send_json(200, {"ok": True})
 
 

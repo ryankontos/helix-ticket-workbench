@@ -19,7 +19,7 @@ The page supports:
 - A configurable search-attempt limit, from 1 to 20.
 - Searchable check history.
 - Device details and the complete returned browser JSON.
-- An **Open screenshot** button for eligible checks.
+- **Open image** and **Show in Finder** buttons for eligible checks.
 
 Screenshots are full-page PNGs named `<SERIAL>.png`. A screenshot is created only when every returned legal-hold record is explicitly `NotFlagged`. Flagged, unknown, and unsuccessful results still appear in history and retain their returned JSON, but do not produce screenshots.
 

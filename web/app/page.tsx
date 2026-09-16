@@ -75,6 +75,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const enteredSerialCount = parseSerials(serialInput).length;
 
   useEffect(() => {
     let live = true;
@@ -122,6 +123,7 @@ export default function Home() {
       setHistory(records);
       if (body.history_records?.[0]) setSelectedId(body.history_records[0].id);
       setBridgeOnline(true);
+      setError('');
       setMessage(`${serials.length} serial${serials.length === 1 ? '' : 's'} checked`);
     } catch (caught) {
       setBridgeOnline(false);
@@ -139,9 +141,24 @@ export default function Home() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Could not open screenshot.');
+      setError('');
       setMessage('Screenshot opened');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not open screenshot.');
+    }
+  }
+
+  async function revealScreenshot(path: string) {
+    try {
+      const response = await fetch(`${bridgeUrl}/api/reveal-screenshot`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Could not show screenshot in Finder.');
+      setError('');
+      setMessage('Screenshot shown in Finder');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not show screenshot in Finder.');
     }
   }
 
@@ -162,17 +179,17 @@ export default function Home() {
   return (
     <main className="checker">
       <header className="header">
-        <div><h1>Legal hold checker</h1><span>PC Toolkit</span></div>
+        <div className="brand"><div className="brand-mark" aria-hidden="true">LH</div><div><h1>Legal hold checker</h1><span>PC Toolkit</span></div></div>
         <div className={`connection ${bridgeOnline ? 'online' : bridgeOnline === false ? 'offline' : ''}`}><i />{bridgeOnline ? 'Ready' : bridgeOnline === false ? 'Offline' : 'Connecting'}</div>
       </header>
 
       <form className="check-form" onSubmit={runCheck}>
-        <label className="control serial-control"><span>Serial numbers</span><textarea value={serialInput} onChange={event => setSerialInput(event.target.value)} placeholder={'One per line'} rows={4} /></label>
+        <label className="control serial-control"><div className="control-heading"><span>Serial numbers</span><small>{enteredSerialCount ? `${enteredSerialCount} ready` : 'Batch lookup'}</small></div><textarea value={serialInput} onChange={event => setSerialInput(event.target.value)} placeholder={'One per line'} rows={4} /></label>
         <div className="form-side">
           <label className="control"><span>Screenshot folder</span><div className="input-with-button"><input value={folder} onChange={event => setFolder(event.target.value)} /><button type="button" onClick={() => setFolder('~/Desktop/Legal-Hold-Evidence')}>Desktop</button></div></label>
           <div className="control"><span>Save mode</span><div className="choice-row"><button type="button" className={createNewFolder ? 'chosen' : ''} onClick={() => setCreateNewFolder(true)}>New folder</button><button type="button" className={!createNewFolder ? 'chosen' : ''} onClick={() => setCreateNewFolder(false)}>Add to folder</button></div></div>
           <label className="control"><span>Search attempts</span><input type="number" min={1} max={20} value={maxAttempts} onChange={event => setMaxAttempts(Math.min(20, Math.max(1, Number(event.target.value) || 1)))} /></label>
-          <button className="run-button" type="submit" disabled={busy}>{busy ? 'Checking…' : 'Check serials'}</button>
+          <button className="run-button" type="submit" disabled={busy} aria-busy={busy}>{busy ? 'Checking…' : 'Check serials'}</button>
         </div>
       </form>
 
@@ -186,24 +203,24 @@ export default function Home() {
           <input className="history-search" aria-label="Search history" placeholder="Search serials or devices" value={historySearch} onChange={event => setHistorySearch(event.target.value)} />
           <div className="history-list">
             {!filteredHistory.length && <div className="empty">No previous checks</div>}
-            {filteredHistory.map(item => <button className={`history-row ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => setSelectedId(item.id)}><div className={`status-dot ${statusClass(item.overall_legal_hold)}`} /><div><strong>{item.serial}</strong><span>{item.device_name || 'No device name'}</span><small>{checkedLabel(item.checked_at)}</small></div><em className={statusClass(item.overall_legal_hold)}>{holdLabel(item.overall_legal_hold)}</em></button>)}
+            {filteredHistory.map(item => <button type="button" className={`history-row ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => setSelectedId(item.id)}><div className={`status-dot ${statusClass(item.overall_legal_hold)}`} /><div><strong>{item.serial}</strong><span>{item.device_name || 'No device name'}</span><small>{checkedLabel(item.checked_at)}</small></div><em className={statusClass(item.overall_legal_hold)}>{holdLabel(item.overall_legal_hold)}</em></button>)}
           </div>
         </aside>
 
         <section className="detail-panel">
-          {!detail || !selectedResult ? <div className="empty detail-empty"><b>Select a check</b><span>Results will appear here</span></div> : <ResultDetail detail={detail} result={selectedResult} onOpenScreenshot={openScreenshot} />}
+          {!detail || !selectedResult ? <div className="empty detail-empty"><b>Select a check</b><span>Results will appear here</span></div> : <ResultDetail detail={detail} result={selectedResult} onOpenScreenshot={openScreenshot} onRevealScreenshot={revealScreenshot} />}
         </section>
       </section>
     </main>
   );
 }
 
-function ResultDetail({ detail, result, onOpenScreenshot }: { detail: HistoryDetail; result: ToolkitResult; onOpenScreenshot: (path: string) => void }) {
+function ResultDetail({ detail, result, onOpenScreenshot, onRevealScreenshot }: { detail: HistoryDetail; result: ToolkitResult; onOpenScreenshot: (path: string) => void; onRevealScreenshot: (path: string) => void }) {
   const record = detail.record;
   const fields = summaryFields(result);
   return <>
     <div className="detail-heading"><div><h2>{record.serial}</h2><span>{record.device_name || 'Device information'}</span></div><div className={`result-status ${statusClass(record.overall_legal_hold)}`}>{holdLabel(record.overall_legal_hold)}</div></div>
-    <div className="detail-actions"><span>Checked {checkedLabel(record.checked_at)} · {record.attempt_count} attempt{record.attempt_count === 1 ? '' : 's'}</span>{record.screenshot ? <button onClick={() => onOpenScreenshot(record.screenshot as string)}>Open screenshot</button> : <span className="no-screenshot">No screenshot</span>}</div>
+    <div className="detail-actions"><span>Checked {checkedLabel(record.checked_at)} · {record.attempt_count} attempt{record.attempt_count === 1 ? '' : 's'}</span>{record.screenshot ? <div className="screenshot-actions"><button type="button" className="open-button" onClick={() => onOpenScreenshot(record.screenshot as string)}>Open image</button><button type="button" onClick={() => onRevealScreenshot(record.screenshot as string)}>Show in Finder</button></div> : <span className="no-screenshot">No screenshot</span>}</div>
     {record.error && <div className="notice error">{record.error}</div>}
     <section className="info-section"><h3>Device information</h3><div className="info-grid">{fields.map(([label, value]) => <div key={label}><span>{label}</span><b>{displayValue(value)}</b></div>)}</div></section>
     <section className="raw-section"><div className="section-heading"><h3>Returned data</h3><span>JSON</span></div><JsonTree label="Response" value={result.final_data} level={0} /></section>
